@@ -167,12 +167,22 @@ local function icap_check(task, content, digest, rule)
       end
 
       local function get_respond_query()
+        local content_len = tonumber(#content)        
+        local http_req =  string.format("GET http://127.0.0.1 HTTP/1.0\r\nUser-Agent: %s\r\n\r\n", rule.user_agent)
+        local http_resp = string.format("HTTP/1.0 200 OK\r\nContent-Length: %d\r\n\r\n", content_len)
+        local http_req_len = string.len(http_req)
+
         table.insert(respond_headers, 1, string.format(
             'RESPMOD icap://%s:%s/%s ICAP/1.0\r\n', addr:to_string(), addr:get_port(), rule.scheme))
-        table.insert(respond_headers, '\r\n')
-        table.insert(respond_headers, size .. '\r\n')
+        table.insert(respond_headers, string.format("Encapsulated: req-hdr=0, res-hdr=%d, res-body=%d\r\n", http_req_len, http_req_len + string.len(http_resp))
+        table.insert(respond_headers, "\r\n")
+        table.insert(respond_headers, http_req)
+        table.insert(respond_headers, http_resp)
+        table.insert(respond_headers, http_resp)
+        table.insert(respond_headers, string.format("%x\r\n", content_len))
         table.insert(respond_headers, content)
-        table.insert(respond_headers, '\r\n0\r\n\r\n')
+        table.insert(respond_headers, "\r\n0; ieof\r\n\r\n")
+
         return respond_headers
       end
 
@@ -352,11 +362,11 @@ local function icap_check(task, content, digest, rule)
               if icap_headers['Allow'] and string.find(icap_headers['Allow'], '204') then
                 add_respond_header('Allow', '204')
               end
-              if icap_headers['Service'] and string.find(icap_headers['Service'], 'IWSVA 6.5') then
-                add_respond_header('Encapsulated', 'res-hdr=0 res-body=0')
-              else
-                add_respond_header('Encapsulated', 'res-body=0')
-              end
+--              if icap_headers['Service'] and string.find(icap_headers['Service'], 'IWSVA 6.5') then
+--                add_respond_header('Encapsulated', 'res-hdr=0 res-body=0')
+--              else
+--                add_respond_header('Encapsulated', 'res-body=0')
+--              end
               if icap_headers['Server'] and string.find(icap_headers['Server'], 'F-Secure ICAP Server') then
                 local from = task:get_from('mime')
                 local rcpt_to = task:get_principal_recipient()
